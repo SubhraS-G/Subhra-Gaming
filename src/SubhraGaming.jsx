@@ -8,7 +8,7 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 // 👤 CREATOR PHOTO
 // → Place CP.jpeg in your /public folder (Next.js) and this works as-is.
 // → OR replace with a hosted URL e.g. "https://i.imgur.com/YOUR_ID.jpeg"
-const CREATOR_PHOTO = "https://github.com/SubhraS-G/Subhra-Gaming/blob/main/CP.jpeg";
+const CREATOR_PHOTO = "https://raw.githubusercontent.com/SubhraS-G/Subhra-Gaming/main/CP.jpeg";
 
 // 🎬 REAL YOUTUBE VIDEOS
 const VIDEOS = [
