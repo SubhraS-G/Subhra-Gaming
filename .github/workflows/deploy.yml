@@ -30,6 +30,8 @@ jobs:
       # 4. Build the project (creates /dist folder)
       - name: Build
         run: npm run build
+        env:
+          VITE_RATINGS_API_BASE: ${{ secrets.RATINGS_API_BASE }}
 
       # 5. Deploy /dist folder to gh-pages branch
       - name: Deploy

@@ -50,6 +50,51 @@ const LIVE_URL      = "https://www.youtube.com/live/ZdAlAl4zLD0";
 const CHANNEL_URL   = "https://youtube.com/@SubhraGaming69";
 const CONTACT_EMAIL = "profession.subhra@gmail.com";
 
+// 🎮 REAL GAME DEV PROJECTS (#100DaysOfCode)
+// slug must match the VALID_PROJECTS set on the ratings API backend.
+const PROJECTS = [
+  {
+    slug: "glitch-runner",
+    emoji: "⚡",
+    title: "GLITCH RUNNER",
+    tagline: "Cyberpunk endless runner — dodge, collect, survive.",
+    tech: ["HTML5 Canvas", "Vanilla JS"],
+    playUrl: "https://subhras-g.github.io/Glitch-Runner",
+    githubUrl: "https://github.com/SubhraS-G/Glitch-Runner",
+  },
+  {
+    slug: "top-down-shooter",
+    emoji: "🔫",
+    title: "TOP DOWN SHOOTER",
+    tagline: "Cyberpunk 2D shooter with wave-based enemy AI, built from scratch.",
+    tech: ["Unity 6", "C#"],
+    playUrl: null,
+    githubUrl: "https://github.com/SubhraS-G/Top-Down-Shooter",
+  },
+  {
+    slug: "skill-issue",
+    emoji: "😈",
+    title: "SKILL ISSUE",
+    tagline: "A troll platformer designed to destroy your confidence.",
+    tech: ["Unity 6", "C#"],
+    playUrl: "https://subhras-g.itch.io/skill-issue",
+    githubUrl: "https://github.com/SubhraS-G/SKILL-ISSUE",
+  },
+  {
+    slug: "suga-blaze",
+    emoji: "🔥",
+    title: "SuGa BLAZE",
+    tagline: "3D endless runner — zero Unity 3D experience to shipped in 22 days.",
+    tech: ["Unity 6", "C#"],
+    playUrl: null,
+    githubUrl: "https://github.com/SubhraS-G/SuGa-BLAZE",
+  },
+];
+
+// Ratings/comments API — set VITE_RATINGS_API_BASE in your .env (or Vercel/host
+// env vars) once the backend is deployed. Falls back to localhost for dev.
+const RATINGS_API_BASE = import.meta.env.VITE_RATINGS_API_BASE || "http://localhost:4123";
+
 // YouTube thumbnail helper
 const ytThumb = (id) => `https://img.youtube.com/vi/${id}/hqdefault.jpg`;
 
@@ -136,7 +181,7 @@ function Loader({ done }) {
 }
 
 // ─── Nav ───────────────────────────────────────────────────────────────────
-const NAV = ["About","Content","Live","Collab","Setup","Contact"];
+const NAV = ["About","Projects","Content","Live","Collab","Setup","Contact"];
 function Nav({ logoClicks, onLogo }) {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -319,7 +364,197 @@ function About() {
   );
 }
 
-// ─── VIDEO CARD ────────────────────────────────────────────────────────────
+// ─── STAR RATING (interactive input + read-only display) ──────────────────
+function StarRating({ value, onChange, readOnly = false, size = 18 }) {
+  const [hoverVal, setHoverVal] = useState(0);
+  const display = readOnly ? value : (hoverVal || value);
+  return (
+    <div style={{ display:"inline-flex", gap:2 }}>
+      {[1,2,3,4,5].map(n => (
+        <span
+          key={n}
+          onClick={readOnly ? undefined : () => onChange(n)}
+          onMouseEnter={readOnly ? undefined : () => setHoverVal(n)}
+          onMouseLeave={readOnly ? undefined : () => setHoverVal(0)}
+          style={{
+            fontSize: size,
+            cursor: readOnly ? "default" : "pointer",
+            color: n <= display ? "#ffaa00" : "#333",
+            transition: "color 0.15s",
+            lineHeight: 1,
+          }}
+        >★</span>
+      ))}
+    </div>
+  );
+}
+
+// ─── PROJECT RATINGS & COMMENTS (live, backed by the ratings API) ─────────
+function ProjectRatings({ slug }) {
+  const [ratings, setRatings] = useState([]);
+  const [average, setAverage] = useState(0);
+  const [count, setCount] = useState(0);
+  const [status, setStatus] = useState("loading"); // loading | ready | offline
+  const [form, setForm] = useState({ name:"", rating:0, comment:"" });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [showForm, setShowForm] = useState(false);
+
+  const load = useCallback(() => {
+    fetch(`${RATINGS_API_BASE}/api/projects/${slug}/ratings`)
+      .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+      .then(data => {
+        setRatings(data.ratings || []);
+        setAverage(data.average || 0);
+        setCount(data.count || 0);
+        setStatus("ready");
+      })
+      .catch(() => setStatus("offline"));
+  }, [slug]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const submit = () => {
+    if (!form.rating) { setError("Pick a star rating first."); return; }
+    if (!form.comment.trim()) { setError("Add a short comment."); return; }
+    setError("");
+    setSubmitting(true);
+    fetch(`${RATINGS_API_BASE}/api/projects/${slug}/ratings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    })
+      .then(r => r.json().then(data => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) { setError(data.error || "Couldn't submit. Try again."); return; }
+        setRatings(data.ratings);
+        setAverage(data.average);
+        setCount(data.count);
+        setForm({ name:"", rating:0, comment:"" });
+        setShowForm(false);
+      })
+      .catch(() => setError("Couldn't reach the ratings server."))
+      .finally(() => setSubmitting(false));
+  };
+
+  if (status === "offline") {
+    return (
+      <div style={{ marginTop:18, paddingTop:14, borderTop:"1px solid #1e1e32", fontFamily:"'Rajdhani',sans-serif", fontSize:12, color:"#555" }}>
+        Ratings are temporarily unavailable.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop:18, paddingTop:14, borderTop:"1px solid #1e1e32" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+        <StarRating value={Math.round(average)} readOnly size={15} />
+        <span style={{ fontFamily:"'Rajdhani',sans-serif", fontSize:13, color:"#888" }}>
+          {status === "loading" ? "Loading…" : count > 0 ? `${average} (${count} ${count===1?"rating":"ratings"})` : "No ratings yet — be the first"}
+        </span>
+      </div>
+
+      {ratings.length > 0 && (
+        <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:12, maxHeight:140, overflowY:"auto" }}>
+          {ratings.map(r => (
+            <div key={r.id} style={{ background:"#0f0f1a", border:"1px solid #1e1e32", borderRadius:6, padding:"8px 12px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+                <span style={{ fontFamily:"'Orbitron',monospace", fontSize:10, color:"#00f0ff", letterSpacing:1 }}>{r.name}</span>
+                <StarRating value={r.rating} readOnly size={11} />
+              </div>
+              <p style={{ margin:0, fontFamily:"'Rajdhani',sans-serif", fontSize:13, color:"#bbb", lineHeight:1.5 }}>{r.comment}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!showForm ? (
+        <button onClick={() => setShowForm(true)}
+          style={{ background:"none", border:"1px solid #333", borderRadius:4, padding:"6px 14px", fontFamily:"'Orbitron',monospace", fontSize:9, color:"#5b5bff", cursor:"pointer", letterSpacing:2 }}>
+          ★ RATE THIS PROJECT
+        </button>
+      ) : (
+        <div style={{ background:"#0f0f1a", border:"1px solid #1e1e32", borderRadius:6, padding:12 }}>
+          <div style={{ marginBottom:10 }}>
+            <StarRating value={form.rating} onChange={n => setForm(f => ({...f, rating:n}))} size={20} />
+          </div>
+          <input
+            placeholder="Your name (optional)"
+            value={form.name}
+            onChange={e => setForm(f => ({...f, name:e.target.value}))}
+            style={{ width:"100%", background:"#0a0a12", border:"1px solid #1e1e32", borderRadius:4, padding:"8px 10px", color:"#fff", fontFamily:"'Rajdhani',sans-serif", fontSize:13, outline:"none", marginBottom:8, boxSizing:"border-box" }}
+          />
+          <textarea
+            placeholder="What did you think?"
+            rows={2}
+            value={form.comment}
+            onChange={e => setForm(f => ({...f, comment:e.target.value}))}
+            style={{ width:"100%", background:"#0a0a12", border:"1px solid #1e1e32", borderRadius:4, padding:"8px 10px", color:"#fff", fontFamily:"'Rajdhani',sans-serif", fontSize:13, outline:"none", resize:"vertical", marginBottom:8, boxSizing:"border-box" }}
+          />
+          {error && <div style={{ color:"#ff5b5b", fontFamily:"'Rajdhani',sans-serif", fontSize:12, marginBottom:8 }}>{error}</div>}
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={submit} disabled={submitting}
+              style={{ background:"#5b5bff", border:"none", borderRadius:4, padding:"7px 16px", fontFamily:"'Orbitron',monospace", fontSize:9, color:"#fff", cursor:submitting?"default":"pointer", letterSpacing:2, opacity:submitting?0.6:1 }}>
+              {submitting ? "SENDING…" : "SUBMIT"}
+            </button>
+            <button onClick={() => { setShowForm(false); setError(""); }}
+              style={{ background:"none", border:"1px solid #333", borderRadius:4, padding:"7px 16px", fontFamily:"'Orbitron',monospace", fontSize:9, color:"#888", cursor:"pointer", letterSpacing:2 }}>
+              CANCEL
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── PROJECT CARD ───────────────────────────────────────────────────────────
+function ProjectCard({ project, delay }) {
+  const [hov, setHov] = useState(false);
+  const [ref, vis] = useReveal(0.1);
+  return (
+    <div ref={ref} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
+      style={{ background:"#12121f", borderRadius:8, padding:"24px 22px", border:`1px solid ${hov?"#5b5bff":"#1e1e32"}`, boxShadow:hov?"0 0 30px rgba(91,91,255,0.25)":"0 4px 20px rgba(0,0,0,0.3)", transform:hov?"translateY(-4px)":"none", transition:"all 0.3s", opacity:vis?1:0, transitionDelay:`${delay}ms` }}>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:10 }}>
+        <span style={{ fontSize:30 }}>{project.emoji}</span>
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap", justifyContent:"flex-end" }}>
+          {project.tech.map(t => (
+            <span key={t} style={{ background:"rgba(91,91,255,0.12)", border:"1px solid rgba(91,91,255,0.3)", borderRadius:4, padding:"3px 9px", fontFamily:"'Orbitron',monospace", fontSize:8, color:"#5b5bff", letterSpacing:1 }}>{t}</span>
+          ))}
+        </div>
+      </div>
+      <h4 style={{ fontFamily:"'Orbitron',monospace", fontSize:15, color:"#fff", margin:"0 0 8px", letterSpacing:1 }}>{project.title}</h4>
+      <p style={{ color:"#999", fontFamily:"'Rajdhani',sans-serif", fontSize:14, lineHeight:1.6, margin:"0 0 16px" }}>{project.tagline}</p>
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+        {project.playUrl && (
+          <button onClick={()=>window.open(project.playUrl,"_blank")}
+            style={{ background:"#5b5bff", border:"none", borderRadius:4, padding:"7px 16px", fontFamily:"'Orbitron',monospace", fontSize:9, color:"#fff", cursor:"pointer", letterSpacing:2 }}>
+            ▶ PLAY
+          </button>
+        )}
+        <button onClick={()=>window.open(project.githubUrl,"_blank")}
+          style={{ background:"none", border:"1px solid #333", borderRadius:4, padding:"7px 16px", fontFamily:"'Orbitron',monospace", fontSize:9, color:"#aaa", cursor:"pointer", letterSpacing:2 }}>
+          ↗ SOURCE
+        </button>
+      </div>
+      <ProjectRatings slug={project.slug} />
+    </div>
+  );
+}
+
+// ─── PROJECTS ───────────────────────────────────────────────────────────────
+function Projects() {
+  return (
+    <section id="projects" style={{ padding:"100px 40px", maxWidth:1200, margin:"0 auto" }}>
+      <SectionHead label="// #100DAYSOFCODE" title="GAME DEV PROJECTS" sub="Built from scratch — no templates, no pre-made scripts. Rate them or drop a comment." />
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:24 }}>
+        {PROJECTS.map((p,i) => <ProjectCard key={p.slug} project={p} delay={i*80} />)}
+      </div>
+    </section>
+  );
+}
+
+
 function VideoCard({ id, title, views, category, url, delay }) {
   const [hov, setHov] = useState(false);
   const [ref, vis] = useReveal(0.1);
@@ -634,6 +869,7 @@ export default function SubhraGaming() {
       <Nav logoClicks={logoClicks} onLogo={handleLogo} />
       <Hero />
       <About />
+      <Projects />
       <Content />
       <Live />
       <Collab />
